@@ -41,6 +41,6 @@
 
 技术支持
 远形时空 ：赵珂 
-邮箱：zhaoke@hyperci.com
+邮箱：support@hyperci.com
   
 
