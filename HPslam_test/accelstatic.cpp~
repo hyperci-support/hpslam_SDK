@@ -1,0 +1,379 @@
+//
+//  main.cpp
+//  ekf_final
+//
+//  Created by 谭智丹 on 17/2/7.
+//  Copyright © 2017年 谭智丹. All rights reserved.
+//
+
+#include <iostream>
+#include <fstream>
+#include <cyusb.h>
+#include <sys/time.h>
+#include <opencv2/opencv.hpp>
+#include <pangolin/pangolin.h>
+
+#include "MsgQueue.h"
+#include "CaptureData.h"
+#include "CMutex.h"
+
+#include "EigenHelper.h"
+#include "EKFSystem.hpp"
+#include "PangoViewer.hpp"
+#include "IMUFilter.hpp"
+
+using namespace cv;
+using namespace std;
+
+
+int main(int argc, const char * argv[])
+{
+    
+    // ------------- Pangolin ----------------------------------------
+    pangolin::CreateWindowAndBind("Main", 852, 640);
+    glEnable(GL_DEPTH_TEST);
+    
+    pangolin::OpenGlMatrix proj = pangolin::ProjectionMatrix(852,640,200,400,426,320,0.1,1000);
+    pangolin::OpenGlRenderState s_cam(proj, pangolin::ModelViewLookAt(-3.0, 0.0, 0.0, 0,0,0, 0.0, 0.0, 1.0));
+    
+    pangolin::Handler3D handler(s_cam);
+    pangolin::View& d_cam = pangolin::CreateDisplay()
+    .SetBounds(0.0, 1.0, 0.0, 1.0, -852.0f/640.0f)
+    .SetHandler(&handler);
+    
+    pangolin::OpenGlMatrix Twc;
+    Twc.SetIdentity();
+
+	PangoViewer pango;
+
+    
+    // -------------- Create a EKF-SLAM EKFSystem & Load parameters ----
+	// Create
+	bool bHalfResolution = false;
+	int NcamX = 19;
+	EKFSystem ekfTracker(bHalfResolution, NcamX);
+
+	// Configurate
+	string config_file = "../configLeft.yaml";
+	ekfTracker.LoadParameters(config_file);
+	
+    
+	// --------------- About Sensors ------------------------------------
+	// Data grabber
+	CaptureData *pCaptureData = new CaptureData;
+	USBElements sensorCapture;
+
+	// IMU Data container
+	vector<double> tss;
+	vector<EgV3d> ams;
+	vector<EgV3d> wms;
+
+	
+	// --------------- Create an IMU filter -----------------------------
+	double gyroMeasErr = 0.1;
+	EgV3d egv3os(0,0,0);
+	//IMUFilter imuFuser(200, 0.0872, 0.4, 0.03, 0.2, egv3os, egv3os);
+	IMUFilter imuFuser(500, 0.2, 0.4, 0.03, 0.2, egv3os, egv3os);
+
+    //================= Main Function ====================================
+	int fastRun = 0;
+	long long noUseTimeStamp = 0;
+	long long callTimeStamp = 0, callTimeStamp_last = 0;
+	int ret = 0;
+
+	bool bHaveGyroBias = false;
+	EgV3d sumGyroBias(0,0,0);
+	int	  numGyroBias = 0;
+	EgV3d estimatedGyroBias0(0,0,0), estimatedGyroBias(0,0,0);
+	// Quote these two lines if you'd like to estimate the gyro bias
+	// bHaveGyroBias = true;
+	// estimatedGyroBias << -0.050682 -0.0688238 -0.0201648;
+
+	bool bHaveGravity = false;
+	EgV3d sumGravity(0,0,0);
+	int   numGravity = 0;
+	EgV3d estimatedGravity0(0,0,0), estimatedGravity(0,0,0);
+
+	vector<EgV3d> staticGravities;
+
+	bool bEkfInitialized = false;
+	Mat prevI;
+	int iStep = 0;
+	
+	namedWindow("img", 0);
+	
+	double prevImuTime = 0;
+	
+	int nSave = 0;
+	bool isLost = false;
+	
+	
+	int recordi = 0;
+	int recordn = 0;
+	
+	ofstream fout("../accel.txt");
+
+	while(!pangolin::ShouldQuit())
+	{
+		// In the very beginning, let's sleep a little while
+		if(pCaptureData->First_Run==0)
+        {
+            sleep(2);
+            pCaptureData->First_Run=1;
+        }
+
+		// Try to get data every 50 ms
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		callTimeStamp = tv.tv_sec*1000 + tv.tv_usec/1000;
+		if(callTimeStamp - callTimeStamp_last < 20)
+		{
+			continue;
+		}
+		callTimeStamp_last = callTimeStamp;
+		
+		// Capture data
+        while(ret==1)
+        {
+			ret = pCaptureData->Get_CaptureData(&sensorCapture, noUseTimeStamp);
+		}
+		
+		if(sensorCapture.Sensor_Frame_Buffer.empty())
+		{
+			cout << "ret = 0, No data comes in!" << endl;
+			ret = 1;
+			continue;
+		}
+		else
+		{				
+			ret = 1;
+			
+			// --- IMAGE ---------------------------------------------------------
+			// Image & It's timestamp
+			//Mat oI(480, 640, CV_8UC1, sensorCapture.IMG_Frame_Buffer.back().RightImgBuffer);
+			Mat oI(480, 640, CV_8UC1, sensorCapture.Sensor_Frame_Buffer.back().LeftImgBuffer);
+			double img_time = (double)sensorCapture.Sensor_Frame_Buffer.back().ImgTimeStamp * 1e-9;
+			
+			recordi++;
+			if(recordi % 50 == 0)
+			{
+				recordi = 0;
+				recordn++;
+				char nname[30];
+				sprintf(nname, "../images/%06d.png", recordn);
+				imwrite(nname, oI);
+			}
+			
+			if (!bEkfInitialized)
+			{
+				imshow("img", oI);
+				waitKey(1);
+			}
+
+			
+			// --- IMU -----------------------------------------------------------
+			tss.clear();	ams.clear();	wms.clear();
+
+			for (size_t kk=0; kk<sensorCapture.Sensor_Frame_Buffer.size(); kk++)
+			{
+				Sensor_Frame &SF = sensorCapture.Sensor_Frame_Buffer[kk];
+				int imuDataNum = SF.DataNum;
+				for(int i=0; i<imuDataNum; i++)
+				{
+					double tmi = (double)SF.ImuTimeStamp[i]*1e-9;
+					
+					int k = i;
+					if(k==9)
+					{
+						k = 8;
+					}
+					double amx = (double)SF.ImuValue[k][0];
+					double amy = (double)SF.ImuValue[k][1];
+					double amz = (double)SF.ImuValue[k][2];
+					double wmx = (double)SF.ImuValue[k][3];
+					double wmy = (double)SF.ImuValue[k][4];
+					double wmz = (double)SF.ImuValue[k][5];
+
+					tss.push_back(tmi);
+					ams.push_back(EgV3d(amx, amy, amz));
+					wms.push_back(EgV3d(wmx, wmy, wmz));
+					
+					cout << "accel " << amx << "\t" << amy << "\t" << amz << "\n";
+					//cout << "gyro " << wmx << "\t" << wmy << "\t" << wmz << "\n";
+
+					// For estimating the gyroscope's bias
+					if(!bHaveGyroBias)
+					{
+						sumGyroBias += wms.back();
+						numGyroBias++;
+					}
+					else if(!bHaveGravity)	// For estimating the initial gravity vector
+					{
+						sumGravity += ams.back();
+						numGravity++;
+					}
+					
+				}
+			}
+
+//-------------------------------------------------------------------------------------------//
+
+			// --- Preparation ---------------------------------------------
+			// (Assume that we have already calibrated the Accelerometer and got appropriate bias values)
+
+			// Estimate gyro bias if neccessary
+			if(!bHaveGyroBias)
+			{
+				if(numGyroBias > 500)
+				{
+					estimatedGyroBias = sumGyroBias / (double)numGyroBias;
+					numGyroBias = 0;
+					sumGyroBias << 0, 0, 0;
+					
+					if((estimatedGyroBias - estimatedGyroBias0).norm() < 0.0003)
+					{
+						estimatedGyroBias = (estimatedGyroBias + estimatedGyroBias0) / 2.0;
+						bHaveGyroBias = true;
+						cout << "gyro bias " << estimatedGyroBias.transpose() << endl;
+						waitKey();
+					}
+					else
+					{
+						cout << estimatedGyroBias << endl;
+						estimatedGyroBias0 = estimatedGyroBias;
+					}
+				}
+
+				continue;
+				
+			}
+
+			// Estimate gravity vector
+			if(!bHaveGravity)
+			{
+				if(numGravity < 500)
+				{
+					continue;
+				}
+				else
+				{
+					estimatedGravity = sumGravity / (double)numGravity;
+					sumGravity << 0, 0, 0;
+					numGravity = 0;
+					
+					if((estimatedGravity - estimatedGravity0).norm() < 0.005)
+					{
+						estimatedGravity = (estimatedGravity + estimatedGravity0) / 2.0;
+						estimatedGravity0 = estimatedGravity;
+						fout << estimatedGravity[0] << "\t" << estimatedGravity[1] << "\t" << estimatedGravity[2] << "\n";
+						//bHaveGravity = true;
+						cout << "estimated gravity " << estimatedGravity.transpose() << endl;
+						//waitKey();
+						continue;
+						
+					}
+					else
+					{
+						estimatedGravity0 = estimatedGravity;
+						cout << "mean gravity " << estimatedGravity.transpose() << endl;
+						continue;
+					}
+				}
+			}
+			// go go go!!!
+
+
+			//--- EKF Tracker -------------------------------------------------------------
+			clock_t t_begin = clock();
+			if(!bEkfInitialized)
+			{
+				// Initialize
+				EgV3d init_p, init_v, init_ba, init_bw, init_g;
+				init_p << 0, 0, 0;
+				init_v << 0, 0, 0;
+				init_ba << -0.083, -0.263, 0.0353;
+				init_bw = estimatedGyroBias;
+				init_g  = ekfTracker.R_Cs * (estimatedGravity - init_ba);
+		
+				bEkfInitialized = true;
+
+				// Initialize IMU filter
+				imuFuser.SetGyroBias(init_bw);
+				imuFuser.SetAccelBias(init_ba);
+				imuFuser.ResetQfromA(estimatedGravity);
+				
+				prevImuTime = tss.back();
+				
+				continue;
+			}
+			else
+			{
+				// Feature management (delete features, update features_info, add new features)
+
+				// Propagate (using all IMU readings between current frame and previous frame)
+				if(tss[0] < prevImuTime || tss[0] > prevImuTime + 0.004)
+				{
+					cerr << "Imu time error: tss0 - prevImuTime = " << tss[0] - prevImuTime << endl;
+					//waitKey();
+				}
+				prevImuTime = tss.back();
+				
+				
+				iStep++;
+				// ---------------- IMU fusion --------------------------
+				if(imuFuser.HandleDatas(wms, ams, 0.002))
+				{
+					EgV3d newBw = imuFuser.GetGyroBias();
+					cout << "gyro bias updated: " << endl;
+					cout << newBw.transpose() << " v.s. " << estimatedGyroBias.transpose() << endl;
+				}
+
+				
+				// Get yaw/pitch/roll angles
+				EgQuatd q_if = imuFuser.GetQuaternion();
+				EgV3d ypr_if = imuFuser.Quat2YawPitchRoll(q_if);
+				cout << "Yaw/Pitch/Roll:\t" << 180 / 3.1415926 * ypr_if.transpose() << endl;
+	
+
+				// Display
+				imshow("img", oI);
+				waitKey(1);
+
+				clock_t t_end = clock();
+				cout << "time " << (double)(t_end-t_begin)/CLOCKS_PER_SEC << endl;
+
+			}
+
+
+			//--- Pangolin ----------------------------------------------------
+			// Clear screen
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			// Activate
+			d_cam.Activate(s_cam);
+
+			// Draw
+			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			
+			// Visualize the IMU fusion result
+			EgQuatd ifq = imuFuser.GetQuaternion();
+			pango.DrawCamera(ifq, 1.0, egv3os);
+
+			// Finish
+			pangolin::FinishFrame();
+			
+		}
+
+	}
+	
+
+
+    
+	cout << "Test..." << endl	;
+
+    
+    return 0;
+    
+    
+}
+

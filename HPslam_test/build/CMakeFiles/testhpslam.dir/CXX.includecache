@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../include/hpslam.hpp
+stdio.h
+-
+iostream
+-
+
+/home/leo/project/HPBCV1.0.0_SDK/HPslam_test/testhpslam.cpp
+stdio.h
+-
+iostream
+-
+hpslam.hpp
+/home/leo/project/HPBCV1.0.0_SDK/HPslam_test/hpslam.hpp
+pthread.h
+-
+sys/time.h
+-
+unistd.h
+-
+

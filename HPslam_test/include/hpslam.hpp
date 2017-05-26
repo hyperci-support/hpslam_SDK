@@ -1,0 +1,19 @@
+//
+//  IMUFilter.hpp
+//  ekf_final
+//
+//  Created by 谭智丹 on 17/2/17.
+//  Copyright © 2017年 谭智丹. All rights reserved.
+//
+
+#ifndef hpslam_hpp
+#define hpslam_hpp
+
+#include <stdio.h>
+#include <iostream>
+
+void* hpslam_main(void* arg);
+double SixDOF[7]={0.0};
+int hpslamout_flag=0;
+
+#endif /* IMUFilter_hpp */

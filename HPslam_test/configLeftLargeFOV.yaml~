@@ -1,0 +1,35 @@
+%YAML:1.0
+image_width: 640
+image_height: 480
+fx: 4.1161629e+02
+fy: 4.1141185e+02
+cx: 2.9640755e+02
+cy: 2.2722752e+02
+k1: -0.30298
+k2: 0.07291
+p1: -0.00191
+p2: -0.00018
+k3: 0.0
+imu_rate: 500
+camera_rate: 50
+sigma_gyro: 1.7e-03 #2.7e-4
+sigma_accel: 2.0e-02 #1.29e-2
+sigma_pixel: 2.0
+gravity: 9.805
+IWantYou: 50
+fast_threshold: 20
+hps_ini: 25
+hps_mat: 12
+ncc_threshold: 0.8
+zncc_threshold: 0.9
+ssd_threshold: 0.8
+max_angle: 90.0
+prior_inverse_depth: 1.0
+max_inverse_depth: 10.0
+min_inverse_depth: 0.05
+q_Sc: !!opencv-matrix
+   rows: 4
+   cols: 1
+   dt: d
+   data: [ 0.002078, -0.70405,
+       -0.71012, -0.0066713 ]
