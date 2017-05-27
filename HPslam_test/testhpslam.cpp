@@ -18,7 +18,7 @@ int main()
     {
 	    if(hpslamout_flag==1)
 	    {
-	    	printf("6DOF out %f,%f，%f,%f,%f,%f,%f\n",SixDOF[0],SixDOF[1],SixDOF[2],SixDOF[3],SixDOF[4],SixDOF[5],SixDOF[6]);
+	    	printf("6DOF out xyz(%f,%f，%f),Quaternion[%f,%f,%f,%f]\n",SixDOF[0],SixDOF[1],SixDOF[2],SixDOF[3],SixDOF[4],SixDOF[5],SixDOF[6]);
 		hpslamout_flag=0;
 	    }
             else
