@@ -59,16 +59,16 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 #add_executable( aslam ${SOURCES} )
 #target_link_libraries( aslam ${LIBS} )
 
-add_library(${PROJECT_NAME} SHARED
-src/hpslam.cpp 
-src/Camera.cpp 
-src/CamPose.cpp 
-src/Feature.cpp 
-src/EKFSystem.cpp 
-src/PangoViewer.cpp 
-src/IMUFilter.cpp
-)
-target_link_libraries( ${PROJECT_NAME} ${LIBS} )
+#add_library(${PROJECT_NAME} SHARED
+#src/hpslam.cpp 
+#src/Camera.cpp 
+#src/CamPose.cpp 
+#src/Feature.cpp 
+#src/EKFSystem.cpp 
+#src/PangoViewer.cpp 
+#src/IMUFilter.cpp
+#)
+#target_link_libraries( ${PROJECT_NAME} ${LIBS} )
 
 add_executable( testhpslam testhpslam.cpp)
 target_link_libraries( testhpslam ${LIBS} ${PROJECT_SOURCE_DIR}/lib/libhpslam.so)
