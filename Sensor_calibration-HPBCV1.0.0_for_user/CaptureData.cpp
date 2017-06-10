@@ -99,6 +99,7 @@ void Save_Config_Parameter(cyusb_handle *handl)
     Para Rfx,Rfy,Rcx,Rcy,Rk1,Rk2,Rp1,Rp2,Rk3,RqSc1,RqSc2,RqSc3,RqSc4,RT0,RT1,RT2,Rans[3][3];
     Para fx_r,fy_r,cx_r,cy_r,k1_r,k2_r,p1_r,p2_r,k3_r;
     Para Rfx_r,Rfy_r,Rcx_r,Rcy_r,Rk1_r,Rk2_r,Rp1_r,Rp2_r,Rk3_r;
+    unsigned char SNnum[2]={0x00};
     
     ofstream fs1("./configStereo.yaml");
     string sfx,sfy,scx,scy,sk1,sk2,sp1,sp2,sk3,sqSc1,sqSc2,sqSc3,sqSc4,sans0,sans1,sans2,sT0,sT1,sT2;
@@ -366,6 +367,17 @@ void Save_Config_Parameter(cyusb_handle *handl)
 
         ReadEEPROM(handl,Reg_add,Rk3_r.cValue+i);
     }
+	for(int i=0;i<2;i++)
+    {    
+        Reg_add[0]=0x1b;
+        Reg_add[1]=0x00+i;
+
+        ReadEEPROM(handl,Reg_add,SNnum+i);
+    }
+    char C_SNnum[6];
+    sprintf(C_SNnum,"%02x%02x",SNnum[0],SNnum[1]);
+    string str_SNnum(C_SNnum);
+	
 
 //printf("RT0 %f, RT1  %f, RT2  %f\n ans[0] %f %f %f\n",RT0.dValue,RT1.dValue,RT2.dValue,Rans[0][0].dValue,Rans[0][1].dValue,Rans[0][2].dValue);
 //printf(" ans[1] %f %f %f \n",Rans[1][0].dValue,Rans[1][1].dValue,Rans[1][2].dValue);
@@ -411,6 +423,7 @@ sans2="-0.0155,0.0321,0.9994";sT0="-0.06793291";sT1="-0.00253469";sT2="0.0051954
 */
     fs1<<"%YAML:1.0\n";
     fs1<<"HPBCV:1.0\n";
+    fs1<<"SN   :"<<str_SNnum<<"\n";
     fs1<<"image_width: 640\n";
     fs1<<"image_height: 480 \n";
     fs1<<"fx: "<<sfx<<"\n";
