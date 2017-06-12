@@ -32,7 +32,7 @@
 4,文件说明
   Sensor_Binocular-HPBCV1.0.0   			sensor的驱动，demo为测试程序
   Sensor_calibration-HPBCV1.0.0_for_user		运行demo生成标定文件，我们的标定文件事先写在sensor的EEPROM中，运行算法SDK时要先将标定文件configStereo.yaml生成。 
-
+ 并拷贝到HPslam_test/目录下。
  HPslam_test 						为hpslam测试demo程序。
  printf("6DOF out xyz(%f,%f，%f),Quaternion[%f,%f,%f,%f]\n",SixDOF[0],SixDOF[1],SixDOF[2],SixDOF[3],SixDOF[4],SixDOF[5],SixDOF[6]);
  6DOF输出，xyz为相对于初始位置的xyz，Quaternion为瞬时位置的四元数。
