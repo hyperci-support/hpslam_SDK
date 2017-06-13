@@ -563,9 +563,9 @@ void ShowCaptureData(unsigned char *CaptureData,int CaptureData_Len)
         
 #if 1
 
-        memmove(Sensor_Frame_data.LeftImgBuffer,CaptureData+i,307200);
+        memmove(Sensor_Frame_data.RightImgBuffer,CaptureData+i,307200);
     
-        memmove(Sensor_Frame_data.RightImgBuffer,CaptureData+i+307200,307200);
+        memmove(Sensor_Frame_data.LeftImgBuffer,CaptureData+i+307200,307200);
 
 
         if(First_Run==1)
@@ -619,7 +619,6 @@ void* CaptureData::_RunThreadB_Mon(void* arg)
 
 //    unsigned char Reg_data[3]={0x1F,0x00,0x03};
     
-    Save_Config_Parameter(CaptureData_this->m_makerbinocular.h1); //将标定参数写到EEPROM中。
     while(1)
     {
 //        cout<<">>>>>>>_RunThreadB_Mon"<<endl;
