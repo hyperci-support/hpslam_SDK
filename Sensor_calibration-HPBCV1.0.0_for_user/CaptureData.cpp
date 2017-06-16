@@ -423,7 +423,7 @@ sans2="-0.0155,0.0321,0.9994";sT0="-0.06793291";sT1="-0.00253469";sT2="0.0051954
 */
     fs1<<"%YAML:1.0\n";
     fs1<<"HPBCV:1.0\n";
-    fs1<<"SN   :"<<str_SNnum<<"\n";
+    fs1<<"SN "<<str_SNnum<<":0\n";
     fs1<<"image_width: 640\n";
     fs1<<"image_height: 480 \n";
     fs1<<"fx: "<<sfx<<"\n";
